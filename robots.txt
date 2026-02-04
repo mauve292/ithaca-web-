@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://www.ithaca-web-agency.gr/sitemap.xml

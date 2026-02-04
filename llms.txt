@@ -1,0 +1,21 @@
+# Ithaca Agency
+
+Ithaca Agency builds custom software, system integrations, AI automation, and workflow solutions for teams in Greece and remote.
+
+## Primary Page
+- https://www.ithaca-web-agency.gr/
+
+## Key Sections
+- Hero and quick summary
+- Services
+- Selected work
+- Process
+- About
+- FAQ
+- Contact
+
+## Language
+- English and Greek (URL param: `?lang=en` or `?lang=el`)
+
+## Contact Path
+- https://www.ithaca-web-agency.gr/#contact

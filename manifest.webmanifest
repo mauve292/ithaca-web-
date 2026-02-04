@@ -1,0 +1,22 @@
+{
+  "name": "Ithaca Agency",
+  "short_name": "Ithaca",
+  "description": "Ithaca Agency designs custom software, integrations, AI automation, and workflow systems.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7fafc",
+  "theme_color": "#f7fafc",
+  "icons": [
+    {
+      "src": "/assets/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
