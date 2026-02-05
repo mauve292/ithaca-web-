@@ -4,12 +4,13 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 let closeMobileNav = null;
-let showreelHasUserGesture = false;
-let showreelNeedsUnmute = false;
-let showreelDidAutoplayAttempt = false;
-let showreelYTApiPromise = null;
-let showreelYTPlayer = null;
-let showreelGestureTrackerBound = false;
+let heroVideoHasUserGesture = false;
+let heroVideoNeedsUnmute = false;
+let heroVideoDidAutoplayAttempt = false;
+let heroVideoYTApiPromise = null;
+let heroVideoYTPlayer = null;
+let heroVideoYTPlayerPromise = null;
+let heroVideoGestureTrackerBound = false;
 
 /** Anime.js compatibility wrapper:
  * - Anime v4 (UMD): window.anime is an object with .animate(), .stagger(), etc.
@@ -776,12 +777,11 @@ function intro() {
 }
 
 function initLiteYouTube() {
-  const players = $$(".lite-video[data-video-id]");
-  if (!players.length) return;
-  const showreelSection = $("#showreel");
-  if (!showreelSection) return;
+  const heroVideoRegion = $("[data-hero-video-region]");
+  const heroVideoCard = $("[data-hero-video-card]");
+  const iframe = heroVideoCard ? $("iframe", heroVideoCard) : null;
+  if (!heroVideoRegion || !heroVideoCard || !iframe) return;
 
-  let showreelAutoPlayed = false;
   let didPlayingSafetyUnmute = false;
 
   function forceUnmute(player) {
@@ -806,20 +806,27 @@ function initLiteYouTube() {
     }
   }
 
-  function tryUnmuteIfNeeded() {
-    if (!showreelYTPlayer) return;
-    if (!showreelNeedsUnmute) return;
-    showreelNeedsUnmute = false;
-    forceUnmute(showreelYTPlayer);
-  }
-
   function bindGestureTrackerOnce() {
-    if (showreelGestureTrackerBound) return;
-    showreelGestureTrackerBound = true;
+    if (heroVideoGestureTrackerBound) return;
+    heroVideoGestureTrackerBound = true;
 
     const onGesture = () => {
-      showreelHasUserGesture = true;
-      tryUnmuteIfNeeded();
+      heroVideoHasUserGesture = true;
+      heroVideoNeedsUnmute = false;
+      ensurePlayer()
+        .then((player) => {
+          try {
+            player.setVolume(100);
+          } catch (_) {}
+          try {
+            player.unMute();
+          } catch (_) {}
+          try {
+            player.playVideo();
+          } catch (_) {}
+          forceUnmute(player);
+        })
+        .catch(() => {});
     };
 
     document.addEventListener("pointerdown", onGesture, {
@@ -831,6 +838,16 @@ function initLiteYouTube() {
       capture: true,
       once: true,
     });
+    document.addEventListener("wheel", onGesture, {
+      capture: true,
+      once: true,
+      passive: true,
+    });
+    document.addEventListener("touchstart", onGesture, {
+      capture: true,
+      once: true,
+      passive: true,
+    });
   }
 
   function loadYouTubeAPI() {
@@ -838,9 +855,9 @@ function initLiteYouTube() {
       return Promise.resolve(window.YT);
     }
 
-    if (showreelYTApiPromise) return showreelYTApiPromise;
+    if (heroVideoYTApiPromise) return heroVideoYTApiPromise;
 
-    showreelYTApiPromise = new Promise((resolve, reject) => {
+    heroVideoYTApiPromise = new Promise((resolve, reject) => {
       const existing = document.querySelector(
         'script[src="https://www.youtube.com/iframe_api"]'
       );
@@ -869,149 +886,171 @@ function initLiteYouTube() {
       }
     });
 
-    return showreelYTApiPromise;
+    return heroVideoYTApiPromise;
   }
 
-  function createIframe(button) {
-    if (!button) return null;
-    if (button.dataset.loaded === "true") {
-      return button.querySelector("iframe");
-    }
-
-    const videoId = button.getAttribute("data-video-id");
-    if (!videoId) return null;
-
-    const isEl = document.documentElement.getAttribute("lang") === "el";
-    const title = isEl
-      ? button.getAttribute("data-iframe-title-el")
-      : button.getAttribute("data-iframe-title-en");
-
-    const iframe = document.createElement("iframe");
-    iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1`;
-    iframe.title = title || "Ithaca Agency showreel";
-    iframe.allow =
-      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
-    iframe.setAttribute("allowfullscreen", "");
-    iframe.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-
-    button.dataset.loaded = "true";
-    button.innerHTML = "";
-    button.appendChild(iframe);
-    return iframe;
+  function ensureHeroIframeConfig() {
+    try {
+      const url = new URL(iframe.src);
+      if (url.hostname !== "www.youtube-nocookie.com") {
+        url.hostname = "www.youtube-nocookie.com";
+      }
+      url.searchParams.set("autoplay", "1");
+      url.searchParams.set("playsinline", "1");
+      url.searchParams.set("rel", "0");
+      url.searchParams.set("modestbranding", "1");
+      url.searchParams.set("enablejsapi", "1");
+      iframe.src = url.toString();
+    } catch (_) {}
   }
 
-  function ensurePlayer(button) {
-    const iframe = createIframe(button) || button.querySelector("iframe");
-    if (!iframe) return Promise.reject(new Error("Showreel iframe not found"));
-
+  function ensurePlayer() {
     if (
-      showreelYTPlayer &&
-      typeof showreelYTPlayer.getIframe === "function" &&
-      showreelYTPlayer.getIframe() === iframe
+      heroVideoYTPlayer &&
+      typeof heroVideoYTPlayer.getIframe === "function" &&
+      heroVideoYTPlayer.getIframe() === iframe
     ) {
-      return Promise.resolve(showreelYTPlayer);
+      return Promise.resolve(heroVideoYTPlayer);
     }
 
-    return loadYouTubeAPI().then(
-      (YT) =>
-        new Promise((resolve, reject) => {
-          try {
-            showreelYTPlayer = new YT.Player(iframe, {
-              events: {
-                onReady: () => resolve(showreelYTPlayer),
-                onStateChange: (event) => {
-                  const PLAYING =
-                    window.YT && window.YT.PlayerState
-                      ? window.YT.PlayerState.PLAYING
-                      : 1;
-                  if (event?.data === PLAYING && showreelHasUserGesture) {
-                    if (!didPlayingSafetyUnmute) {
-                      didPlayingSafetyUnmute = true;
-                      forceUnmute(showreelYTPlayer);
+    if (heroVideoYTPlayerPromise) return heroVideoYTPlayerPromise;
+
+    if (heroVideoYTPlayer && typeof heroVideoYTPlayer.destroy === "function") {
+      try {
+        heroVideoYTPlayer.destroy();
+      } catch (_) {}
+      heroVideoYTPlayer = null;
+    }
+
+    heroVideoYTPlayerPromise = loadYouTubeAPI()
+      .then(
+        (YT) =>
+          new Promise((resolve, reject) => {
+            try {
+              heroVideoYTPlayer = new YT.Player(iframe, {
+                events: {
+                  onReady: () => {
+                    heroVideoYTPlayerPromise = null;
+                    resolve(heroVideoYTPlayer);
+                  },
+                  onStateChange: (event) => {
+                    const PLAYING =
+                      window.YT && window.YT.PlayerState
+                        ? window.YT.PlayerState.PLAYING
+                        : 1;
+                    if (event?.data === PLAYING && heroVideoHasUserGesture) {
+                      if (!didPlayingSafetyUnmute) {
+                        didPlayingSafetyUnmute = true;
+                        forceUnmute(heroVideoYTPlayer);
+                      }
                     }
-                  }
+                  },
+                  onError: (event) => {
+                    heroVideoYTPlayerPromise = null;
+                    reject(event?.data || new Error("YouTube player error"));
+                  },
                 },
-                onError: (event) =>
-                  reject(event?.data || new Error("YouTube player error")),
-              },
-            });
-          } catch (error) {
-            reject(error);
-          }
-        })
-    );
+              });
+            } catch (error) {
+              heroVideoYTPlayerPromise = null;
+              reject(error);
+            }
+          })
+      )
+      .catch((error) => {
+        heroVideoYTPlayerPromise = null;
+        throw error;
+      });
+
+    return heroVideoYTPlayerPromise;
   }
 
-  function startPlayback(button) {
-    ensurePlayer(button)
+  function startPlayback() {
+    if (heroVideoDidAutoplayAttempt) return;
+    heroVideoDidAutoplayAttempt = true;
+    ensurePlayer()
       .then((player) => {
         didPlayingSafetyUnmute = false;
-        if (showreelHasUserGesture) {
-          showreelNeedsUnmute = false;
+
+        const attemptUnmuted = () => {
+          try {
+            player.setVolume(100);
+          } catch (_) {}
+          try {
+            player.unMute();
+          } catch (_) {}
           try {
             player.playVideo();
           } catch (_) {}
+        };
+
+        const fallbackMuted = () => {
+          heroVideoNeedsUnmute = true;
+          try {
+            player.mute();
+          } catch (_) {}
+          try {
+            player.playVideo();
+          } catch (_) {}
+        };
+
+        if (heroVideoHasUserGesture) {
+          heroVideoNeedsUnmute = false;
+          attemptUnmuted();
           forceUnmute(player);
           return;
         }
 
-        showreelNeedsUnmute = true;
-        try {
-          player.mute();
-          player.playVideo();
-        } catch (_) {}
+        heroVideoNeedsUnmute = false;
+        attemptUnmuted();
+
+        setTimeout(() => {
+          if (heroVideoHasUserGesture) return;
+          let isMuted = false;
+          let state = null;
+          try {
+            if (typeof player.isMuted === "function") isMuted = player.isMuted();
+          } catch (_) {}
+          try {
+            if (typeof player.getPlayerState === "function") {
+              state = player.getPlayerState();
+            }
+          } catch (_) {}
+          const PLAYING =
+            window.YT && window.YT.PlayerState ? window.YT.PlayerState.PLAYING : 1;
+          if (isMuted || state !== PLAYING) {
+            fallbackMuted();
+          }
+        }, 450);
       })
       .catch(() => {
         // Keep lite fallback if API setup fails.
       });
   }
 
+  ensureHeroIframeConfig();
   bindGestureTrackerOnce();
-
-  players.forEach((button) => {
-    button.addEventListener("click", () => {
-      showreelHasUserGesture = true;
-      tryUnmuteIfNeeded();
-      startPlayback(button);
-    });
-  });
-
-  const autoObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (showreelAutoPlayed) return;
-        if (!entry.isIntersecting) return;
-        showreelAutoPlayed = true;
-        showreelDidAutoplayAttempt = true;
-        startPlayback(players[0]);
-        autoObserver.disconnect();
-      });
-    },
-    {
-      threshold: [0.35],
-      rootMargin: "0px 0px -20% 0px",
-    }
-  );
-  autoObserver.observe(showreelSection);
+  startPlayback();
 }
 
 function initShowreelDocking() {
-  const section = $("#showreel");
-  const dockWrap = $("[data-showreel-dockwrap]");
-  const card = $("[data-showreel-card]");
-  const placeholder = $("[data-showreel-placeholder]");
-  const closeBtn = $("[data-showreel-close]");
+  const section = $("[data-hero-video-region]");
+  const dockWrap = $("[data-hero-video-dockwrap]");
+  const card = $("[data-hero-video-card]");
+  const placeholder = $("[data-hero-video-placeholder]");
+  const closeBtn = $("[data-hero-video-close]");
   if (!section || !dockWrap || !card || !placeholder || !closeBtn) return;
 
   const root = document.documentElement;
-  const DISMISS_KEY = "showreel_dismissed";
-  const DOCKED_CLASS = "showreel-docked";
+  const DISMISS_KEY = "heroVideo_dismissed";
+  const DOCKED_CLASS = "heroVideo-docked";
+  const DISMISSED_CLASS = "heroVideo-dismissed";
 
   let dismissed = false;
   try {
     dismissed = sessionStorage.getItem(DISMISS_KEY) === "1";
   } catch (_) {}
-  if (dismissed) root.classList.add("showreel-dismissed");
+  if (dismissed) root.classList.add(DISMISSED_CLASS);
 
   let isSectionIntersecting = false;
   let lastScrollY = window.scrollY || 0;
@@ -1032,7 +1071,7 @@ function initShowreelDocking() {
 
   function clearDismissedState() {
     dismissed = false;
-    root.classList.remove("showreel-dismissed");
+    root.classList.remove(DISMISSED_CLASS);
     try {
       sessionStorage.removeItem(DISMISS_KEY);
     } catch (_) {}
@@ -1117,7 +1156,7 @@ function initShowreelDocking() {
     try {
       sessionStorage.setItem(DISMISS_KEY, "1");
     } catch (_) {}
-    root.classList.add("showreel-dismissed");
+    root.classList.add(DISMISSED_CLASS);
     undockCard();
   });
 
