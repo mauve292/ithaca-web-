@@ -437,10 +437,13 @@ body.nav-open {
 }
 
 .hero-videoCard iframe {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border: 0;
   display: block;
+  z-index: 1;
 }
 
 .hero-copy--right {
@@ -452,6 +455,7 @@ body.nav-open {
   position: absolute;
   top: 12px;
   right: 12px;
+  z-index: 3;
   width: 30px;
   height: 30px;
   border-radius: 999px;
@@ -463,6 +467,53 @@ body.nav-open {
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
+}
+
+.hero-videoSoundToggle {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(15, 34, 48, 0.78);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 16px 36px rgba(15, 34, 48, 0.22);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  cursor: pointer;
+  opacity: 0;
+  transform: translate3d(0, 8px, 0);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+.hero-videoCard[data-sound-prompt="visible"] .hero-videoSoundToggle {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  pointer-events: auto;
+}
+
+.hero-videoSoundToggle:hover {
+  background: rgba(15, 34, 48, 0.9);
+}
+
+.hero-videoSoundToggle:focus-visible {
+  outline: 2px solid rgba(151, 215, 204, 0.9);
+  outline-offset: 2px;
+}
+
+.hero-videoSoundToggle__icon {
+  font-size: 14px;
+  line-height: 1;
 }
 
 .hero-videoClose:focus-visible {
@@ -1361,6 +1412,22 @@ textarea:focus {
     max-height: none;
     width: 100%;
   }
+  html.heroVideo-docked .hero-videoCard {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    z-index: auto;
+    min-height: 300px;
+    box-shadow: var(--shadow);
+  }
+  html.heroVideo-docked .hero-videoClose {
+    opacity: 0;
+    pointer-events: none;
+  }
+  html.heroVideo-docked .hero-videoPlaceholder {
+    height: 0 !important;
+  }
   .heroStatsRow {
     margin-top: 24px;
   }
@@ -1400,13 +1467,6 @@ textarea:focus {
 }
 
 @media (max-width: 768px) {
-  html.heroVideo-docked .hero-videoCard {
-    left: 12px;
-    right: 12px;
-    width: auto;
-    max-width: none;
-    bottom: calc(12px + env(safe-area-inset-bottom));
-  }
   html.showreel-docked .showreel-card {
     left: 12px;
     right: 12px;
@@ -1416,6 +1476,11 @@ textarea:focus {
   }
   html.showreel-docked .lite-video {
     min-height: 160px;
+  }
+  .hero-videoSoundToggle {
+    left: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    max-width: calc(100% - 24px);
   }
 }
 

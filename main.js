@@ -12,6 +12,8 @@ let heroVideoYTPlayer = null;
 let heroVideoYTPlayerPromise = null;
 let heroVideoGestureTrackerBound = false;
 
+const HERO_VIDEO_DESKTOP_QUERY = "(min-width: 981px)";
+
 /** Anime.js compatibility wrapper:
  * - Anime v4 (UMD): window.anime is an object with .animate(), .stagger(), etc.
  * - Anime v3: window.anime is a function (call anime({targets,...}))
@@ -49,6 +51,10 @@ function supportsHoverFinePointer() {
 
 function isSmallScreen() {
   return window.matchMedia("(max-width: 720px)").matches;
+}
+
+function isHeroVideoDesktop() {
+  return window.matchMedia(HERO_VIDEO_DESKTOP_QUERY).matches;
 }
 
 /* ---------------------------
@@ -780,9 +786,37 @@ function initLiteYouTube() {
   const heroVideoRegion = $("[data-hero-video-region]");
   const heroVideoCard = $("[data-hero-video-card]");
   const iframe = heroVideoCard ? $("iframe", heroVideoCard) : null;
-  if (!heroVideoRegion || !heroVideoCard || !iframe) return;
+  const soundToggle = $("[data-hero-video-sound-toggle]");
+  if (!heroVideoRegion || !heroVideoCard || !iframe || !soundToggle) return;
 
-  let didPlayingSafetyUnmute = false;
+  let soundStateCheckTimer = 0;
+
+  function setSoundPromptVisible(visible) {
+    heroVideoNeedsUnmute = visible;
+    heroVideoCard.dataset.soundPrompt = visible ? "visible" : "hidden";
+    soundToggle.hidden = !visible;
+    soundToggle.setAttribute("aria-hidden", visible ? "false" : "true");
+  }
+
+  function isPlayerMuted(player) {
+    try {
+      return typeof player.isMuted === "function" ? player.isMuted() : true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function isPlayerPlaying(player) {
+    try {
+      const state =
+        typeof player.getPlayerState === "function" ? player.getPlayerState() : null;
+      const PLAYING =
+        window.YT && window.YT.PlayerState ? window.YT.PlayerState.PLAYING : 1;
+      return state === PLAYING;
+    } catch (_) {
+      return false;
+    }
+  }
 
   function forceUnmute(player) {
     if (!player) return;
@@ -806,25 +840,63 @@ function initLiteYouTube() {
     }
   }
 
+  function playMuted(player, { showPrompt = true } = {}) {
+    if (!player) return;
+    try {
+      player.mute();
+    } catch (_) {}
+    try {
+      player.playVideo();
+    } catch (_) {}
+    if (showPrompt) {
+      setSoundPromptVisible(true);
+    }
+  }
+
+  function syncSoundPromptFromPlayer(player) {
+    setSoundPromptVisible(isPlayerMuted(player));
+  }
+
+  function requestPlaybackWithSound(player, { fromUserGesture = false } = {}) {
+    if (!player) return;
+
+    setSoundPromptVisible(false);
+
+    try {
+      player.setVolume(100);
+    } catch (_) {}
+    try {
+      player.unMute();
+    } catch (_) {}
+    try {
+      player.playVideo();
+    } catch (_) {}
+
+    if (fromUserGesture) {
+      forceUnmute(player);
+    }
+
+    window.clearTimeout(soundStateCheckTimer);
+    soundStateCheckTimer = window.setTimeout(() => {
+      if (!isPlayerMuted(player) && isPlayerPlaying(player)) {
+        setSoundPromptVisible(false);
+        return;
+      }
+
+      playMuted(player);
+    }, fromUserGesture ? 180 : 280);
+  }
+
   function bindGestureTrackerOnce() {
     if (heroVideoGestureTrackerBound) return;
     heroVideoGestureTrackerBound = true;
 
     const onGesture = () => {
       heroVideoHasUserGesture = true;
-      heroVideoNeedsUnmute = false;
+      if (!heroVideoNeedsUnmute || !isHeroVideoDesktop()) return;
       ensurePlayer()
         .then((player) => {
-          try {
-            player.setVolume(100);
-          } catch (_) {}
-          try {
-            player.unMute();
-          } catch (_) {}
-          try {
-            player.playVideo();
-          } catch (_) {}
-          forceUnmute(player);
+          requestPlaybackWithSound(player, { fromUserGesture: true });
         })
         .catch(() => {});
     };
@@ -837,16 +909,6 @@ function initLiteYouTube() {
     document.addEventListener("keydown", onGesture, {
       capture: true,
       once: true,
-    });
-    document.addEventListener("wheel", onGesture, {
-      capture: true,
-      once: true,
-      passive: true,
-    });
-    document.addEventListener("touchstart", onGesture, {
-      capture: true,
-      once: true,
-      passive: true,
     });
   }
 
@@ -896,11 +958,20 @@ function initLiteYouTube() {
         url.hostname = "www.youtube-nocookie.com";
       }
       url.searchParams.set("autoplay", "1");
+      url.searchParams.set("mute", "1");
       url.searchParams.set("playsinline", "1");
       url.searchParams.set("rel", "0");
       url.searchParams.set("modestbranding", "1");
       url.searchParams.set("enablejsapi", "1");
-      iframe.src = url.toString();
+
+      iframe.setAttribute("loading", "eager");
+      iframe.setAttribute("allowfullscreen", "");
+      iframe.setAttribute("webkitallowfullscreen", "");
+
+      const nextSrc = url.toString();
+      if (iframe.src !== nextSrc) {
+        iframe.src = nextSrc;
+      }
     } catch (_) {}
   }
 
@@ -928,6 +999,15 @@ function initLiteYouTube() {
           new Promise((resolve, reject) => {
             try {
               heroVideoYTPlayer = new YT.Player(iframe, {
+                playerVars: {
+                  autoplay: 1,
+                  mute: 1,
+                  playsinline: 1,
+                  rel: 0,
+                  modestbranding: 1,
+                  enablejsapi: 1,
+                  origin: window.location.origin,
+                },
                 events: {
                   onReady: () => {
                     heroVideoYTPlayerPromise = null;
@@ -938,11 +1018,8 @@ function initLiteYouTube() {
                       window.YT && window.YT.PlayerState
                         ? window.YT.PlayerState.PLAYING
                         : 1;
-                    if (event?.data === PLAYING && heroVideoHasUserGesture) {
-                      if (!didPlayingSafetyUnmute) {
-                        didPlayingSafetyUnmute = true;
-                        forceUnmute(heroVideoYTPlayer);
-                      }
+                    if (event?.data === PLAYING && heroVideoNeedsUnmute) {
+                      syncSoundPromptFromPlayer(heroVideoYTPlayer);
                     }
                   },
                   onError: (event) => {
@@ -970,58 +1047,12 @@ function initLiteYouTube() {
     heroVideoDidAutoplayAttempt = true;
     ensurePlayer()
       .then((player) => {
-        didPlayingSafetyUnmute = false;
-
-        const attemptUnmuted = () => {
-          try {
-            player.setVolume(100);
-          } catch (_) {}
-          try {
-            player.unMute();
-          } catch (_) {}
-          try {
-            player.playVideo();
-          } catch (_) {}
-        };
-
-        const fallbackMuted = () => {
-          heroVideoNeedsUnmute = true;
-          try {
-            player.mute();
-          } catch (_) {}
-          try {
-            player.playVideo();
-          } catch (_) {}
-        };
-
-        if (heroVideoHasUserGesture) {
-          heroVideoNeedsUnmute = false;
-          attemptUnmuted();
-          forceUnmute(player);
-          return;
-        }
-
-        heroVideoNeedsUnmute = false;
-        attemptUnmuted();
-
-        setTimeout(() => {
-          if (heroVideoHasUserGesture) return;
-          let isMuted = false;
-          let state = null;
-          try {
-            if (typeof player.isMuted === "function") isMuted = player.isMuted();
-          } catch (_) {}
-          try {
-            if (typeof player.getPlayerState === "function") {
-              state = player.getPlayerState();
-            }
-          } catch (_) {}
-          const PLAYING =
-            window.YT && window.YT.PlayerState ? window.YT.PlayerState.PLAYING : 1;
-          if (isMuted || state !== PLAYING) {
-            fallbackMuted();
-          }
-        }, 450);
+        playMuted(player, { showPrompt: false });
+        window.setTimeout(() => {
+          requestPlaybackWithSound(player, {
+            fromUserGesture: heroVideoHasUserGesture,
+          });
+        }, 180);
       })
       .catch(() => {
         // Keep lite fallback if API setup fails.
@@ -1030,6 +1061,15 @@ function initLiteYouTube() {
 
   ensureHeroIframeConfig();
   bindGestureTrackerOnce();
+  setSoundPromptVisible(false);
+  soundToggle.addEventListener("click", () => {
+    heroVideoHasUserGesture = true;
+    ensurePlayer()
+      .then((player) => {
+        requestPlaybackWithSound(player, { fromUserGesture: true });
+      })
+      .catch(() => {});
+  });
   startPlayback();
 }
 
@@ -1056,6 +1096,7 @@ function initShowreelDocking() {
   let lastScrollY = window.scrollY || 0;
   let scrollDir = "down";
   let ticking = false;
+  const desktopMedia = window.matchMedia(HERO_VIDEO_DESKTOP_QUERY);
 
   function isDocked() {
     return root.classList.contains(DOCKED_CLASS);
@@ -1089,13 +1130,14 @@ function initShowreelDocking() {
   }
 
   function shouldDock() {
+    if (!desktopMedia.matches) return false;
     if (dismissed) return false;
     const passedSection = window.scrollY > section.offsetTop + 56;
     return passedSection && !isSectionIntersecting && scrollDir === "down";
   }
 
   function shouldUndock() {
-    return isSectionIntersecting || window.scrollY <= section.offsetTop + 8;
+    return !desktopMedia.matches || isSectionIntersecting || window.scrollY <= section.offsetTop + 8;
   }
 
   function evaluateDockState() {
@@ -1150,6 +1192,20 @@ function initShowreelDocking() {
     },
     { passive: true }
   );
+
+  const onDesktopModeChange = () => {
+    if (!desktopMedia.matches) {
+      undockCard();
+      return;
+    }
+    evaluateDockState();
+  };
+
+  if (typeof desktopMedia.addEventListener === "function") {
+    desktopMedia.addEventListener("change", onDesktopModeChange);
+  } else if (typeof desktopMedia.addListener === "function") {
+    desktopMedia.addListener(onDesktopModeChange);
+  }
 
   closeBtn.addEventListener("click", () => {
     dismissed = true;
