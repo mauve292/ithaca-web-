@@ -1301,6 +1301,14 @@ textarea:focus {
   text-align: center;
   background: var(--surface-strong);
 }
+
+@media (min-width: 861px) {
+  .contact-social {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
 .contact-social__title {
   margin: 0 0 14px;
   font-family: Sora, Inter, system-ui, sans-serif;
