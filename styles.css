@@ -1252,13 +1252,10 @@ html.showreel-docked .showreel-close {
   grid-column: 1;
   grid-row: 1;
 }
-.contact-grid > .contact-social {
-  grid-column: 1;
-  grid-row: 2;
-}
+
 .contact-grid > .contact-aside {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1;
 }
 
 .form {
@@ -1293,20 +1290,18 @@ textarea:focus {
   font-size: 12px;
 }
 
+.contact-social-row {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 22px;
+}
+
 .contact-social {
-  justify-self: center;
   width: min(100%, 320px);
-  margin-top: 8px;
   padding: 18px;
   text-align: center;
   background: var(--surface-strong);
-}
-
-@media (min-width: 861px) {
-  .contact-social {
-    margin-left: auto;
-    margin-right: auto;
-  }
 }
 
 .contact-social__title {
@@ -1538,11 +1533,28 @@ textarea:focus {
   .contact-grid {
     grid-template-columns: 1fr;
   }
+  #contact .container {
+    display: flex;
+    flex-direction: column;
+  }
+  .contact-grid {
+    display: contents;
+  }
   .contact-grid > .form,
-  .contact-grid > .contact-social,
   .contact-grid > .contact-aside {
     grid-column: auto;
     grid-row: auto;
+  }
+  .contact-grid > .form {
+    margin-top: 18px;
+  }
+  .contact-social-row {
+    order: 2;
+    margin-top: 14px;
+  }
+  .contact-grid > .contact-aside {
+    order: 3;
+    margin-top: 14px;
   }
 }
 
