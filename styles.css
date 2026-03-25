@@ -1248,6 +1248,18 @@ html.showreel-docked .showreel-close {
   gap: 14px;
   align-items: start;
 }
+.contact-grid > .form {
+  grid-column: 1;
+  grid-row: 1;
+}
+.contact-grid > .contact-social {
+  grid-column: 1;
+  grid-row: 2;
+}
+.contact-grid > .contact-aside {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
 
 .form {
   padding: 18px;
@@ -1279,6 +1291,60 @@ textarea:focus {
 .form-foot {
   margin: 12px 0 0;
   font-size: 12px;
+}
+
+.contact-social {
+  justify-self: center;
+  width: min(100%, 320px);
+  margin-top: 8px;
+  padding: 18px;
+  text-align: center;
+  background: var(--surface-strong);
+}
+.contact-social__title {
+  margin: 0 0 14px;
+  font-family: Sora, Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.contact-social__links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 34, 48, 0.1);
+  background: rgba(255, 255, 255, 0.74);
+  color: rgba(15, 34, 48, 0.82);
+  box-shadow: 0 12px 28px rgba(15, 34, 48, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease,
+    border-color 0.2s ease, color 0.2s ease;
+  text-decoration: none;
+}
+.social-link:hover {
+  transform: translateY(-1px);
+  color: rgba(44, 93, 115, 0.94);
+  border-color: rgba(44, 93, 115, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 34px rgba(15, 34, 48, 0.12);
+}
+.social-link:focus-visible {
+  outline: 2px solid rgba(44, 93, 115, 0.45);
+  outline-offset: 2px;
+}
+.social-link__icon {
+  width: 21px;
+  height: 21px;
+  display: block;
 }
 
 .contact-aside .aside-card {
@@ -1463,6 +1529,12 @@ textarea:focus {
   }
   .contact-grid {
     grid-template-columns: 1fr;
+  }
+  .contact-grid > .form,
+  .contact-grid > .contact-social,
+  .contact-grid > .contact-aside {
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 
